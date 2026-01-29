@@ -1,0 +1,14 @@
+# Production: Replace with your domain
+# resume.yourdomain.com {
+#     reverse_proxy frontend:80
+# }
+
+# Development / Local: Use localhost without HTTPS
+:80 {
+    reverse_proxy frontend:80
+}
+
+# Alternative: Use with a local domain (add to hosts file)
+# resume.local {
+#     reverse_proxy frontend:80
+# }
