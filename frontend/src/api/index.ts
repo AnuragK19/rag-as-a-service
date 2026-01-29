@@ -1,6 +1,10 @@
 import type { UploadResponse, ChatResponse } from '../types';
 
-const API_BASE = '/api';
+// In production, use the dedicated API subdomain
+// In development, use the local proxy (vite.config.ts)
+const API_BASE = import.meta.env.PROD
+    ? 'https://resume-api.anuragkurmi.dev/api'
+    : '/api';
 
 // API functions
 export async function uploadPdf(file: File): Promise<UploadResponse> {
