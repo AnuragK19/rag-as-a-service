@@ -1,5 +1,6 @@
-import { useRef, useEffect, useState } from 'react';
-import type { Highlight, Citation, PageDimension } from '../types';
+import { useRef, useEffect, useState, useCallback } from 'react';
+import { usePdfRenderer } from '../hooks/usePdfRenderer';
+import type { Citation, PageDimension } from '../types';
 
 interface PdfViewerProps {
     pdfUrl: string | null;
@@ -7,58 +8,91 @@ interface PdfViewerProps {
     activeCitation: Citation | null;
 }
 
+// CSS styles as a string to inject
+const highlightStyles = `
+  @keyframes highlightPulse {
+    0%, 100% { 
+      background-color: rgba(255, 226, 143, 0.5);
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    }
+    50% { 
+      background-color: rgba(255, 226, 143, 0.7);
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.6);
+    }
+  }
+`;
+
 export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerProps) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [highlights, setHighlights] = useState<Highlight[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const [scale, setScale] = useState(1);
+    const [scale, setScale] = useState(1.5);
+    const [renderedPageInfo, setRenderedPageInfo] = useState<{ width: number; height: number } | null>(null);
 
-    // Convert citation bbox to highlight format
-    const citationToHighlight = (citation: Citation): Highlight | null => {
-        const pageDim = pageDimensions.find(p => p.page === citation.page);
-        if (!pageDim) return null;
+    const { numPages, renderPage, isLoading, error } = usePdfRenderer(pdfUrl);
 
-        const [x0, y0, x1, y1] = citation.bbox;
+    // Render current page when it changes
+    useEffect(() => {
+        if (!canvasRef.current || numPages === 0) return;
 
-        // Convert PDF points to percentages for positioning
-        const rect = {
-            x1: (x0 / pageDim.width) * 100,
-            y1: (y0 / pageDim.height) * 100,
-            x2: (x1 / pageDim.width) * 100,
-            y2: (y1 / pageDim.height) * 100,
-            width: pageDim.width,
-            height: pageDim.height,
+        const render = async () => {
+            const pageInfo = await renderPage(currentPage, canvasRef.current!, scale);
+            if (pageInfo) {
+                setRenderedPageInfo({ width: pageInfo.width, height: pageInfo.height });
+            }
         };
+
+        render();
+    }, [currentPage, scale, numPages, renderPage]);
+
+    // Navigate to citation page when active citation changes
+    useEffect(() => {
+        if (activeCitation && activeCitation.page !== currentPage) {
+            setCurrentPage(activeCitation.page);
+        }
+    }, [activeCitation]);
+
+    // Calculate highlight position based on PDF coordinates
+    const getHighlightStyle = useCallback(() => {
+        if (!activeCitation || !renderedPageInfo || activeCitation.page !== currentPage) {
+            return null;
+        }
+
+        // Get the original page dimensions from backend
+        const originalPageDim = pageDimensions.find(p => p.page === activeCitation.page);
+        if (!originalPageDim) return null;
+
+        const [x0, y0, x1, y1] = activeCitation.bbox;
+
+        // Calculate scale factor: how much the canvas is scaled from original PDF points
+        const scaleX = renderedPageInfo.width / originalPageDim.width;
+        const scaleY = renderedPageInfo.height / originalPageDim.height;
+
+        // Convert PDF point coordinates to canvas pixel coordinates
+        const left = x0 * scaleX;
+        const top = y0 * scaleY;
+        const width = (x1 - x0) * scaleX;
+        const height = (y1 - y0) * scaleY;
 
         return {
-            id: `citation-${citation.id}`,
-            position: {
-                pageNumber: citation.page,
-                boundingRect: rect,
-                rects: [rect],
-            },
-            content: {
-                text: citation.text,
-            },
+            left: `${left}px`,
+            top: `${top}px`,
+            width: `${width}px`,
+            height: `${height}px`,
         };
-    };
+    }, [activeCitation, renderedPageInfo, currentPage, pageDimensions]);
 
-    // Update highlights when active citation changes
+    const highlightStyle = getHighlightStyle();
+
+    // Scroll to highlight when it appears
     useEffect(() => {
-        if (activeCitation) {
-            const highlight = citationToHighlight(activeCitation);
-            if (highlight) {
-                setHighlights([highlight]);
-                setCurrentPage(activeCitation.page);
-
-                // Scroll to the highlighted area
-                setTimeout(() => {
-                    const highlightEl = document.querySelector('.highlight-layer');
-                    highlightEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 100);
+        if (highlightStyle && containerRef.current) {
+            const highlightEl = containerRef.current.querySelector('.pdf-highlight');
+            if (highlightEl) {
+                highlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
-    }, [activeCitation, pageDimensions]);
+    }, [highlightStyle]);
 
     if (!pdfUrl) {
         return (
@@ -75,12 +109,38 @@ export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerP
         );
     }
 
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-full"
+                style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                <div className="text-center" style={{ color: 'var(--color-text-secondary)' }}>
+                    <div className="w-12 h-12 mx-auto mb-4 border-4 border-current border-t-transparent rounded-full animate-spin" />
+                    <p>Loading PDF...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center h-full"
+                style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                <div className="text-center text-red-500">
+                    <p>{error}</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div
             ref={containerRef}
             className="h-full overflow-auto relative"
             style={{ backgroundColor: 'var(--color-bg-secondary)' }}
         >
+            {/* Inject highlight animation styles */}
+            <style>{highlightStyles}</style>
+
             {/* Toolbar */}
             <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2 border-b"
                 style={{
@@ -89,7 +149,7 @@ export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerP
                 }}>
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={() => setScale(s => Math.max(0.5, s - 0.1))}
+                        onClick={() => setScale(s => Math.max(0.5, s - 0.25))}
                         className="p-1.5 rounded hover:bg-[var(--color-bg-secondary)] transition-colors"
                         title="Zoom out"
                     >
@@ -101,7 +161,7 @@ export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerP
                         {Math.round(scale * 100)}%
                     </span>
                     <button
-                        onClick={() => setScale(s => Math.min(2, s + 0.1))}
+                        onClick={() => setScale(s => Math.min(3, s + 0.25))}
                         className="p-1.5 rounded hover:bg-[var(--color-bg-secondary)] transition-colors"
                         title="Zoom in"
                     >
@@ -112,46 +172,31 @@ export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerP
                 </div>
 
                 <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                    <span>Page {currentPage} of {pageDimensions.length || '?'}</span>
+                    <span>Page {currentPage} of {numPages || '?'}</span>
                 </div>
             </div>
 
-            {/* PDF Container with iframe */}
+            {/* PDF Canvas Container */}
             <div className="flex justify-center p-4">
-                <div className="relative shadow-xl" style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}>
-                    <iframe
-                        src={`${pdfUrl}#page=${currentPage}`}
-                        className="bg-white"
-                        style={{
-                            width: '612px', // Standard letter width in points
-                            height: '792px', // Standard letter height in points
-                            border: 'none',
-                        }}
-                        title="PDF Viewer"
+                <div className="relative shadow-xl bg-white">
+                    {/* The PDF Canvas */}
+                    <canvas
+                        ref={canvasRef}
+                        className="block"
                     />
 
-                    {/* Highlight Overlay */}
-                    {highlights.map(highlight => {
-                        const { boundingRect } = highlight.position;
-                        if (highlight.position.pageNumber !== currentPage) return null;
-
-                        return (
-                            <div
-                                key={highlight.id}
-                                className="highlight-layer absolute pointer-events-none"
-                                style={{
-                                    left: `${boundingRect.x1}%`,
-                                    top: `${boundingRect.y1}%`,
-                                    width: `${boundingRect.x2 - boundingRect.x1}%`,
-                                    height: `${boundingRect.y2 - boundingRect.y1}%`,
-                                    backgroundColor: 'rgba(255, 226, 143, 0.5)',
-                                    border: '2px solid #f59e0b',
-                                    boxShadow: '0 0 12px rgba(245, 158, 11, 0.4)',
-                                    animation: 'pulse 1.5s ease-in-out infinite',
-                                }}
-                            />
-                        );
-                    })}
+                    {/* Highlight Overlay - positioned absolutely over the canvas */}
+                    {highlightStyle && (
+                        <div
+                            className="pdf-highlight absolute pointer-events-none"
+                            style={{
+                                ...highlightStyle,
+                                backgroundColor: 'rgba(255, 226, 143, 0.5)',
+                                border: '2px solid #f59e0b',
+                                animation: 'highlightPulse 1.5s ease-in-out infinite',
+                            }}
+                        />
+                    )}
                 </div>
             </div>
 
@@ -172,9 +217,9 @@ export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerP
                     <input
                         type="number"
                         min={1}
-                        max={pageDimensions.length}
+                        max={numPages}
                         value={currentPage}
-                        onChange={(e) => setCurrentPage(Math.max(1, Math.min(pageDimensions.length, parseInt(e.target.value) || 1)))}
+                        onChange={(e) => setCurrentPage(Math.max(1, Math.min(numPages, parseInt(e.target.value) || 1)))}
                         className="w-12 text-center text-sm rounded border outline-none"
                         style={{
                             backgroundColor: 'var(--color-bg-secondary)',
@@ -184,8 +229,8 @@ export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerP
                     />
 
                     <button
-                        onClick={() => setCurrentPage(p => Math.min(pageDimensions.length, p + 1))}
-                        disabled={currentPage >= pageDimensions.length}
+                        onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))}
+                        disabled={currentPage >= numPages}
                         className="p-1 rounded-full hover:bg-[var(--color-bg-secondary)] disabled:opacity-30 transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

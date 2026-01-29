@@ -26,6 +26,7 @@ function AppContent() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pageDimensions, setPageDimensions] = useState<PageDimension[]>([]);
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
+  const [activeTab, setActiveTab] = useState<'chat' | 'pdf'>('chat');
 
   const handleUploadSuccess = useCallback((response: UploadResponse, file: File) => {
     setSessionId(response.session_id);
@@ -34,10 +35,12 @@ function AppContent() {
     // Create blob URL for PDF viewing
     const blobUrl = URL.createObjectURL(file);
     setPdfUrl(blobUrl);
+    setActiveTab('chat');
   }, []);
 
   const handleCitationClick = useCallback((citation: Citation) => {
     setActiveCitation(citation);
+    setActiveTab('pdf');
 
     // Clear the highlight after animation
     setTimeout(() => {
@@ -54,33 +57,34 @@ function AppContent() {
     setPdfUrl(null);
     setPageDimensions([]);
     setActiveCitation(null);
+    setActiveTab('chat');
   }, [pdfUrl]);
 
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* Header */}
       <header
-        className="flex items-center justify-between px-6 py-3 border-b"
+        className="flex items-center justify-between px-4 md:px-6 py-3 border-b flex-shrink-0"
         style={{ borderColor: 'var(--color-border)' }}
       >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-          <div>
-            <h1 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold truncate" style={{ color: 'var(--color-text)' }}>
               Resume Analyst
             </h1>
-            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            <p className="text-xs truncate hidden sm:block" style={{ color: 'var(--color-text-secondary)' }}>
               RAG-as-a-Service with Verifiable Citations
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
           {sessionId && (
             <button
               onClick={handleNewSession}
@@ -88,7 +92,8 @@ function AppContent() {
                        hover:bg-[var(--color-bg-secondary)]"
               style={{ borderColor: 'var(--color-border)', color: 'var(--color-text-secondary)' }}
             >
-              New Session
+              <span className="hidden sm:inline">New Session</span>
+              <span className="sm:hidden">New</span>
             </button>
           )}
 
@@ -113,10 +118,41 @@ function AppContent() {
         </div>
       </header>
 
-      {/* Main Content - Split Screen */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Chat/Upload */}
-        <div className="w-1/2 border-r flex flex-col" style={{ borderColor: 'var(--color-border)' }}>
+      {/* Mobile Tab Bar - Only visible when session is active on mobile */}
+      {sessionId && (
+        <div className="md:hidden flex border-b" style={{ borderColor: 'var(--color-border)' }}>
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'chat'
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                : 'border-transparent text-[var(--color-text-secondary)]'
+              }`}
+          >
+            Chat
+          </button>
+          <button
+            onClick={() => setActiveTab('pdf')}
+            className={`flex-1 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'pdf'
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                : 'border-transparent text-[var(--color-text-secondary)]'
+              }`}
+          >
+            PDF Viewer
+          </button>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <main className="flex-1 flex overflow-hidden relative">
+        {/* Chat/Upload Panel */}
+        <div
+          className={`
+            flex flex-col h-full w-full md:w-1/2 md:border-r transition-transform duration-300 absolute md:relative
+            ${!sessionId ? 'z-10 bg-[var(--color-bg)]' : ''}
+            ${activeTab === 'chat' ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          `}
+          style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-bg)' }}
+        >
           {!sessionId ? (
             <UploadDropzone onUploadSuccess={handleUploadSuccess} />
           ) : (
@@ -124,8 +160,14 @@ function AppContent() {
           )}
         </div>
 
-        {/* Right Panel - PDF Viewer */}
-        <div className="w-1/2">
+        {/* PDF Viewer Panel */}
+        <div
+          className={`
+            h-full w-full md:w-1/2 transition-transform duration-300 absolute md:relative top-0 left-0 md:left-auto
+            ${activeTab === 'pdf' ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+          `}
+          style={{ backgroundColor: 'var(--color-bg)' }}
+        >
           <PdfViewer
             pdfUrl={pdfUrl}
             pageDimensions={pageDimensions}
