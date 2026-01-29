@@ -1,7 +1,7 @@
-resume.anuragkurmi.dev {
+http://resume.anuragkurmi.dev {
     reverse_proxy frontend:80
 }
 
-resume-api.anuragkurmi.dev {
+http://resume-api.anuragkurmi.dev {
     reverse_proxy backend:8000
 }
