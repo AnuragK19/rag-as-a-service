@@ -13,7 +13,7 @@ from .ingest import DataBlock
 _client: chromadb.PersistentClient = None
 
 # Default storage path
-CHROMA_DB_PATH = "/app/chroma_db"
+CHROMA_DB_PATH = "chroma_db"
 
 
 def get_client(persist_directory: str = None) -> chromadb.PersistentClient:

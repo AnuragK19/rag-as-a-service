@@ -19,7 +19,7 @@ from .vector_store import create_collection, add_documents, query, get_collectio
 from .cleanup import start_scheduler, stop_scheduler, register_session, update_session_access
 
 # Paths
-TEMP_PDF_PATH = Path("/app/temp_pdfs")
+TEMP_PDF_PATH = Path("temp_pdfs")
 
 
 # Pydantic models

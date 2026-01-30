@@ -16,8 +16,8 @@ from . import vector_store
 SESSION_EXPIRY_MINUTES = 30
 
 # Paths
-DB_PATH = "/app/data/sessions.db"
-TEMP_PDF_PATH = "/app/temp_pdfs"
+DB_PATH = "data/sessions.db"
+TEMP_PDF_PATH = "temp_pdfs"
 
 # Global scheduler
 _scheduler: BackgroundScheduler = None
