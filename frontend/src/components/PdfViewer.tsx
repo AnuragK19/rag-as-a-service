@@ -33,7 +33,7 @@ export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerP
 
     // Render current page when it changes
     useEffect(() => {
-        if (!canvasRef.current || numPages === 0) return;
+        if (!canvasRef.current || numPages === 0 || isLoading) return;
 
         const render = async () => {
             const pageInfo = await renderPage(currentPage, canvasRef.current!, scale);
@@ -43,7 +43,7 @@ export function PdfViewer({ pdfUrl, pageDimensions, activeCitation }: PdfViewerP
         };
 
         render();
-    }, [currentPage, scale, numPages, renderPage]);
+    }, [currentPage, scale, numPages, renderPage, isLoading]);
 
     // Navigate to citation page when active citation changes
     useEffect(() => {
