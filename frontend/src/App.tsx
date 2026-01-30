@@ -79,7 +79,7 @@ function AppContent() {
               Resume Analyst
             </h1>
             <p className="text-xs truncate hidden sm:block" style={{ color: 'var(--color-text-secondary)' }}>
-              RAG-as-a-Service with Verifiable Citations
+              POC: RAG with Verifiable Citations &amp; Bounding Box Highlights
             </p>
           </div>
         </div>
