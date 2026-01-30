@@ -13,7 +13,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from . import vector_store
 
 # Session expiry time in minutes
-SESSION_EXPIRY_MINUTES = 30
+SESSION_EXPIRY_MINUTES = 5
 
 # Paths
 DB_PATH = "data/sessions.db"
@@ -173,17 +173,17 @@ def start_scheduler() -> BackgroundScheduler:
     
     _scheduler = BackgroundScheduler()
     
-    # Run cleanup every 30 minutes
+    # Run cleanup every 5 minutes
     _scheduler.add_job(
         cleanup_expired_sessions,
         'interval',
-        minutes=30,
+        minutes=5,
         id='cleanup_sessions',
         replace_existing=True
     )
     
     _scheduler.start()
-    print("[Cleanup] Scheduler started - running every 30 minutes")
+    print("[Cleanup] Scheduler started - running every 5 minutes")
     
     return _scheduler
 
